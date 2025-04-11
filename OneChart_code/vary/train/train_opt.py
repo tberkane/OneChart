@@ -20,7 +20,6 @@ import torch
 import transformers
 
 from vary.train.trainer_vit_fixlr import varyTrainer
-from vary.model import varyLlamaForCausalLM
 from vary.model import *
 from vary.data import make_supervised_data_module
 from vary.utils.arguments import *
