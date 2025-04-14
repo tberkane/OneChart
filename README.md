@@ -53,6 +53,7 @@ python ChartSE_eval/eval_ChartSE.py
 ```
 
 ## 2. Install
+Our environment is cuda11.8+torch2.0.1
 - Clone this repository and navigate to the code folder
 ```bash
 git clone https://github.com/LingyvKong/OneChart.git
