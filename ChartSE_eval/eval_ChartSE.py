@@ -16,12 +16,12 @@ from SCRM import csv_eval, draw_SCRM_table,ocr_eval
 # Load pred answer
 # pred_type = "csv"
 pred_type = "json"
-with open('ChartSE_Benchmark/pred_results/onechart_chartqaSE.json', 'r') as questions_file:
+with open('data/example_pred.json', 'r') as questions_file:
     questions_data = json.load(questions_file)
 
 
 # Load gt json
-with open('ChartSE_Benchmark/ChartQA_test_human_filter.json', 'r') as values_file:
+with open('data/ChartQA_test_human_filter.json', 'r') as values_file:
     values_data = json.load(values_file)
 
 
