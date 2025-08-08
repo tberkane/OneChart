@@ -16,7 +16,7 @@ from SCRM import csv_eval, draw_SCRM_table,ocr_eval
 # Load pred answer
 # pred_type = "csv"
 pred_type = "json"
-with open('data/example_pred.json', 'r') as questions_file:
+with open('data/my_preds.json', 'r') as questions_file:
     questions_data = json.load(questions_file)
 
 
