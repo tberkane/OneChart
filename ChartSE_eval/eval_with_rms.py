@@ -273,6 +273,8 @@ def chart2table_evaluator(data):
 
 
 # data = json.load(open("data/tinychart_formatted_preds_and_gt_play_around.json"))
-data = json.load(open("data/tinychart_formatted_preds_and_onechart_gt.json"))
+# data = json.load(open("data/tinychart_formatted_preds_and_onechart_gt.json"))
+data = json.load(open("data/easy_epicurves_formatted_preds_and_gt_play_around.json"))
+# data = json.load(open("data/easy_epicurves_formatted_preds_and_gt.json"))
 
 print(chart2table_evaluator(data))
