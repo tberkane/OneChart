@@ -497,10 +497,6 @@ def _table_dtw_similarity(target_table, prediction_table, text_theta=0.5):
     if not all_similarities:
         return 0.0
 
-    # Return simple average (no weighting)
-    print(
-        f"Image DTW Similarity Score: {sum(all_similarities) / len(all_similarities):.2f}"
-    )
     return sum(all_similarities) / len(all_similarities)
 
 
@@ -566,6 +562,7 @@ def _parse_table(text, target_has_more_than_two_headers=None):
 def table_dtw_similarity_per_point(
     targets,
     predictions,
+    reversed_predictions,
     text_theta=0.5,
 ):
     """Computes DTW similarity metrics given two flattened tables.
@@ -589,6 +586,10 @@ def table_dtw_similarity_per_point(
         target_table = _parse_table(target, None)
         target_has_more_than_two_headers = len(target_table.headers) > 2
         pred_table = _parse_table(pred, target_has_more_than_two_headers)
+        reversed_pred = reversed_predictions[i]
+        reversed_pred_table = _parse_table(
+            reversed_pred, target_has_more_than_two_headers
+        )
 
         # Try all target variations
         similarity = _table_dtw_similarity(
@@ -596,13 +597,23 @@ def table_dtw_similarity_per_point(
             pred_table,
             text_theta,
         )
-        per_point_scores["dtw_similarity"].append(similarity)
+
+        reversed_similarity = _table_dtw_similarity(
+            target_table,
+            reversed_pred_table,
+            text_theta,
+        )
+
+        # Return simple average (no weighting)
+        print(f"Image DTW Similarity Score: {max(similarity, reversed_similarity):.2f}")
+        per_point_scores["dtw_similarity"].append(max(similarity, reversed_similarity))
     return per_point_scores
 
 
 def table_dtw_similarity(
     targets,
     predictions,
+    reversed_predictions,
     text_theta=0.5,
 ):
     """Aggregated version of table_dtw_similarity_per_point().
@@ -618,7 +629,9 @@ def table_dtw_similarity(
     Returns:
       Dictionary with aggregated DTW similarity
     """
-    score_dict = table_dtw_similarity_per_point(targets, predictions, text_theta)
+    score_dict = table_dtw_similarity_per_point(
+        targets, predictions, reversed_predictions, text_theta
+    )
     return {
         "table_dtw_similarity": (
             100.0 * sum(score_dict["dtw_similarity"]) / len(targets)
@@ -637,20 +650,23 @@ def chart2table_dtw_evaluator(data):
     """
     refs = []
     hyps = []
+    reversed_hyps = []
     for item in data:
         ref = "title |\n" + item["gt_answer"].strip().lower()
         refs.append(ref)
         hyp = "title |\n" + item["model_answer"].strip().lower()
         hyps.append(hyp)
+        reversed_hyp = "title |\n" + item["model_answer_reversed"].strip().lower()
+        reversed_hyps.append(reversed_hyp)
 
-    dtw_similarity = table_dtw_similarity(refs, hyps)
+    dtw_similarity = table_dtw_similarity(refs, hyps, reversed_hyps)
     return dtw_similarity["table_dtw_similarity"]
 
 
 # Example usage
 if __name__ == "__main__":
     # Load data
-    data = json.load(open("data/tinychart_easy_epicurves_formatted_preds_and_gt.json"))
+    data = json.load(open("data/tinychart_hard_epicurves_formatted_preds_and_gt.json"))
 
     # Calculate DTW similarity
     dtw_score = chart2table_dtw_evaluator(data)
