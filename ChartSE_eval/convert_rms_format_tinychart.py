@@ -3,8 +3,10 @@
 
 import json
 
-chartqa_test_data = json.load(open("data/epicurves_gt.json"))
-model_predictions = json.load(open("data/tinychart_hard_epicurves_preds.json"))
+chartqa_test_data = json.load(open("data/EpiCurveBench_processed/gt.json"))
+model_predictions = json.load(
+    open("data/EpiCurveBench_processed/tinychart_adv_preds.json")
+)
 
 import json
 import re
@@ -165,6 +167,7 @@ def parse_or_empty(s: str):
 id_to_gt = {}
 id_to_pred = {}
 id_to_pred_reversed = {}
+id_to_axes_bounds = {}
 for item in chartqa_test_data:
     # if "chartqa2table" in item["id"]:
     #     id = item["image"].split("/")[-1]
@@ -191,6 +194,7 @@ for item in chartqa_test_data:
             rows.append(row)
         table = "\n".join([" | ".join(row) for row in rows])
     id_to_gt[item["images"].split(".")[0]] = table
+    id_to_axes_bounds[item["images"].split(".")[0]] = item["axes_bounds"]
 
 for item in model_predictions:
     # print(item["answer"])
@@ -200,6 +204,7 @@ for item in model_predictions:
         item["answer"] = "\n".join(
             [col1 + "|" + col2 for col1, col2 in zip(row1.split("|"), row2.split("|"))]
         )
+
     if (
         item["answer"].split("\n")[0].count("|") == 1
         and id_to_gt[item["imagename"].split(".")[0]].split("\n")[0].count("|") == 1
@@ -218,6 +223,10 @@ for item in model_predictions:
         pred = item["answer"]
         pred_split = pred.split("\n")
         pred_reversed = "\n".join([pred_split[0]] + pred_split[1:][::-1])
+    if item["answer"].split("\n")[0].count("|") == 1:
+        if pred.split("\n")[-1].count("|") != 1:
+            pred = "\n".join(pred.split("\n")[:-1])
+            pred_reversed = "\n".join(pred_reversed.split("\n")[1:])
     id_to_pred[item["imagename"].split(".")[0]] = pred
     id_to_pred_reversed[item["imagename"].split(".")[0]] = pred_reversed
 
@@ -233,11 +242,12 @@ for id in id_to_gt:
                 "gt_answer": id_to_gt[id],
                 "model_answer": id_to_pred.get(id, ""),
                 "model_answer_reversed": id_to_pred_reversed.get(id, ""),
+                "axes_bounds": id_to_axes_bounds[id],
             }
         )
 
-# with open("data/tinychart_formatted_preds_and_gt.json", "w") as f:
-#     json.dump(formatted_data, f, indent=4)
-# with open("data/tinychart_formatted_preds_and_onechart_gt.json", "w") as f:
-with open("data/tinychart_hard_epicurves_formatted_preds_and_gt.json", "w") as f:
+formatted_data.sort(key=lambda x: int(x["id"]))
+
+
+with open("data/EpiCurveBench_processed/tinychart_adv_preds_gt.json", "w") as f:
     json.dump(formatted_data, f, indent=4)

@@ -24,13 +24,6 @@ for item in chartqa_test_data:
             d = {row[0]: row[1] for row in table[1:]}
         else:
             d = {}
-            # for r in range(1, len(table)):
-            #     row_key = table[r][0]
-            #     if row_key not in d:
-            #         d[row_key] = {}
-            #     for c in range(1, len(table[0])):
-            #         d[row_key][table[0][c]] = table[r][c]
-            # Transpose the table (excluding header row and column)
             headers = table[0][1:]
             for c in range(1, len(table[0])):
                 col_key = table[0][c]

@@ -76,6 +76,12 @@ def parse_simple_format(csv_file_path: str) -> Dict[str, Any]:
     with open(csv_file_path, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         for row in reader:
+            # Skip rows where the first column is "MIN" or "MAX"
+            cols = list(row.keys())
+            if len(cols) >= 1:
+                first_col_value = row[cols[0]].strip()
+                if first_col_value == "MIN" or first_col_value == "MAX":
+                    continue
             # Get the first two columns
             cols = list(row.keys())
             if len(cols) >= 2:
@@ -117,6 +123,12 @@ def parse_time_series_format(csv_file_path: str) -> Dict[str, Any]:
     with open(csv_file_path, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         for row in reader:
+            # Skip rows where the first column is "MIN" or "MAX"
+            cols = list(row.keys())
+            if len(cols) >= 1:
+                first_col_value = row[cols[0]].strip()
+                if first_col_value == "MIN" or first_col_value == "MAX":
+                    continue
             # Get the first column as the time key
             time_cols = list(row.keys())
             time_key = row[time_cols[0]].strip()
@@ -159,6 +171,12 @@ def parse_multi_column_format(csv_file_path: str) -> Dict[str, Any]:
     with open(csv_file_path, "r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         for row in reader:
+            # Skip rows where the first column is "MIN" or "MAX"
+            cols = list(row.keys())
+            if len(cols) >= 1:
+                first_col_value = row[cols[0]].strip()
+                if first_col_value == "MIN" or first_col_value == "MAX":
+                    continue
             # Get the first column as the key
             cols = list(row.keys())
             key = row[cols[0]].strip()
@@ -184,6 +202,36 @@ def parse_multi_column_format(csv_file_path: str) -> Dict[str, Any]:
         "y_title": "None",
         "values": values,
     }
+
+
+def get_axes_bounds(csv_file_path: str) -> Dict[str, Any]:
+    """
+    Get the axes bounds from a CSV file.
+    """
+    with open(csv_file_path, "r", encoding="utf-8") as file:
+        lines = [line.strip() for line in file if line.strip()]
+
+    header = next(csv.reader([lines[0]]))
+    # The second to last and last lines are MIN and MAX
+    min_row = lines[-2].split(",")
+    max_row = lines[-1].split(",")
+
+    # Build a dict mapping from col header to (min, max) tuple, skipping the first column (usually x axis)
+    bounds = {}
+    for i in range(1, len(header)):
+        col = header[i].strip()
+        try:
+            print(min_row)
+            min_val = float(min_row[i].strip())
+        except Exception:
+            min_val = min_row[i].strip()
+        try:
+            print(max_row)
+            max_val = float(max_row[i].strip())
+        except Exception:
+            max_val = max_row[i].strip()
+        bounds[col] = (min_val, max_val)
+    return bounds
 
 
 def convert_csv_to_json(input_directory: str, output_file: str) -> None:
@@ -217,6 +265,8 @@ def convert_csv_to_json(input_directory: str, output_file: str) -> None:
     for csv_file in sorted(csv_files):
         print(f"Processing {csv_file.name}...")
 
+        axes_bounds = get_axes_bounds(str(csv_file))
+
         try:
             # Detect format and parse accordingly
             format_type = detect_csv_format(str(csv_file))
@@ -232,6 +282,7 @@ def convert_csv_to_json(input_directory: str, output_file: str) -> None:
             entry = {
                 "images": csv_file.stem + ".png",  # Assume corresponding image file
                 "gts": gts_data,
+                "axes_bounds": axes_bounds,
             }
 
             json_data.append(entry)

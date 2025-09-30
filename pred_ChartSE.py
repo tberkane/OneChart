@@ -19,19 +19,19 @@ from transformers import TextStreamer
 from vary.model.plug.transforms import test_transform
 
 DEFAULT_IMAGE_TOKEN = "<image>"
-DEFAULT_IMAGE_PATCH_TOKEN = '<imgpad>'
-DEFAULT_IM_START_TOKEN = '<img>'
-DEFAULT_IM_END_TOKEN = '</img>'
-
+DEFAULT_IMAGE_PATCH_TOKEN = "<imgpad>"
+DEFAULT_IM_START_TOKEN = "<img>"
+DEFAULT_IM_END_TOKEN = "</img>"
 
 
 def load_image(image_file):
-    if image_file.startswith('http') or image_file.startswith('https'):
+    if image_file.startswith("http") or image_file.startswith("https"):
         response = requests.get(image_file)
-        image = Image.open(BytesIO(response.content)).convert('RGB')
+        image = Image.open(BytesIO(response.content)).convert("RGB")
     else:
-        image = Image.open(image_file).convert('RGB')
+        image = Image.open(image_file).convert("RGB")
     return image
+
 
 def list_json_value(json_dict):
     rst_str = []
@@ -49,8 +49,8 @@ def list_json_value(json_dict):
                     rst_str.append(value)
                 else:
                     # num_value = value.replace("%", "").replace("$", "").replace(" ", "").replace(",", "")
-                    value = re.sub(r'\(\d+\)|\[\d+\]', '', value)
-                    num_value = re.sub(r'[^\d.-]', '', str(value)) 
+                    value = re.sub(r"\(\d+\)|\[\d+\]", "", value)
+                    num_value = re.sub(r"[^\d.-]", "", str(value))
                     if num_value not in ["-", "*", "none", "None", ""]:
                         rst_str.append(float(num_value))
     except Exception as e:
@@ -62,6 +62,7 @@ def list_json_value(json_dict):
     #     rst_str = rst_str + [float(-1)]
     return rst_str
 
+
 def norm_(rst_list):
     if len(rst_list) < 2:
         return rst_list
@@ -71,29 +72,39 @@ def norm_(rst_list):
     normalized_tensor = (rst_list - min_vals) / (max_vals - min_vals + 1e-9)
     return list(normalized_tensor)
 
+
 def eval_model(args):
     # Model
     disable_torch_init()
     model_name = os.path.expanduser(args.model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False, padding_side="right")
-
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name, use_fast=False, padding_side="right"
+    )
 
     model = varyOPTForCausalLM.from_pretrained(model_name)
-    model.to(device='cuda',  dtype=torch.bfloat16)
+    model.to(device="cuda", dtype=torch.bfloat16)
 
-
-    image_processor_high =  test_transform
+    image_processor_high = test_transform
     use_im_start_end = True
 
     image_token_len = 256
 
     query = "Convert the key information of the chart to a python dict:"
-    qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_PATCH_TOKEN * image_token_len + DEFAULT_IM_END_TOKEN + query + '\n'
-
+    qs = (
+        DEFAULT_IM_START_TOKEN
+        + DEFAULT_IMAGE_PATCH_TOKEN * image_token_len
+        + DEFAULT_IM_END_TOKEN
+        + query
+        + "\n"
+    )
 
     conv_mode = "v1"
     if args.conv_mode is not None and conv_mode != args.conv_mode:
-        print('[WARNING] the auto inferred conversation mode is {}, while `--conv-mode` is {}, using {}'.format(conv_mode, args.conv_mode, args.conv_mode))
+        print(
+            "[WARNING] the auto inferred conversation mode is {}, while `--conv-mode` is {}, using {}".format(
+                conv_mode, args.conv_mode, args.conv_mode
+            )
+        )
     else:
         args.conv_mode = conv_mode
     conv = conv_templates[args.conv_mode].copy()
@@ -113,7 +124,7 @@ def eval_model(args):
     already_done = set()
     if os.path.exists(args.output_file):
         try:
-            with open(args.output_file, 'r') as f:
+            with open(args.output_file, "r") as f:
                 try:
                     existing = json.load(f)
                     for entry in existing:
@@ -141,41 +152,45 @@ def eval_model(args):
 
         input_ids = torch.as_tensor(inputs.input_ids).cuda()
 
-        stop_str = '</s>'
+        stop_str = "</s>"
         keywords = [stop_str]
         stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
         streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 
         flag = 0
 
-        with torch.autocast("cuda", dtype=torch.bfloat16): # bfloat16
+        with torch.autocast("cuda", dtype=torch.bfloat16):  # bfloat16
             output_ids = model.generate(
                 input_ids,
-                images=[(image_tensor_1.unsqueeze(0).half().cuda(), image_tensor_1.unsqueeze(0).cuda())],
+                images=[
+                    (
+                        image_tensor_1.unsqueeze(0).half().cuda(),
+                        image_tensor_1.unsqueeze(0).cuda(),
+                    )
+                ],
                 do_sample=False,
-                num_beams = 1,
+                num_beams=1,
                 streamer=streamer,
                 max_new_tokens=1024,
-                stopping_criteria=[stopping_criteria]
-                )
+                stopping_criteria=[stopping_criteria],
+            )
         input_token_len = input_ids.shape[1]
-        outputs = tokenizer.batch_decode(output_ids[:, input_token_len:], skip_special_tokens=True)[0]
+        outputs = tokenizer.batch_decode(
+            output_ids[:, input_token_len:], skip_special_tokens=True
+        )[0]
         outputs = outputs.strip()
         outputs = outputs.replace("<Number> ", "")
         if outputs.endswith(stop_str):
-            outputs = outputs[:-len(stop_str)]
-        if outputs and outputs[-1] == '.':
+            outputs = outputs[: -len(stop_str)]
+        if outputs and outputs[-1] == ".":
             outputs = outputs[:-1]
 
         # Append result to file immediately
-        result = {
-            "imagename": image_file,
-            "answer": outputs
-        }
+        result = {"imagename": image_file, "answer": outputs}
         # Read, append, and write back to file in a robust way
         if os.path.exists(args.output_file):
             try:
-                with open(args.output_file, 'r') as f:
+                with open(args.output_file, "r") as f:
                     try:
                         all_outputs = json.load(f)
                         if not isinstance(all_outputs, list):
@@ -187,7 +202,7 @@ def eval_model(args):
         else:
             all_outputs = []
         all_outputs.append(result)
-        with open(args.output_file, 'w') as f:
+        with open(args.output_file, "w") as f:
             json.dump(all_outputs, f, indent=4)
         print(f"Appended output for {image_file} to {args.output_file}")
     # pred_nums = model.pred_locs
@@ -207,12 +222,12 @@ def eval_model(args):
     # except Exception as e:
     #     # print("This prediction may be has error! ")
     #     print(e)
-        
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-name", type=str, default="facebook/opt-350m")
-    parser.add_argument("--conv-mode", type=str, default='v1')
+    parser.add_argument("--conv-mode", type=str, default="v1")
     parser.add_argument("--test-images-path", type=str, required=True)
     parser.add_argument("--output-file", type=str, required=True)
     args = parser.parse_args()

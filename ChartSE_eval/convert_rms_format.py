@@ -3,11 +3,8 @@
 
 import json
 
-# chartqa_test_data = json.load(open("../mPLUG-DocOwl/TinyChart/data/test.json"))
-# chartqa_test_data = json.load(open("data/ChartQA_test_human_filter.json"))
-chartqa_test_data = json.load(open("data/epicurves_gt.json"))
-# model_predictions = json.load(open("data/example_pred(use_this).json"))
-model_predictions = json.load(open("data/hard_epicurves_preds.json"))
+chartqa_test_data = json.load(open("data/gt.json"))
+model_predictions = json.load(open("data/tinychart_basic_preds.json"))
 
 import json
 import re
@@ -237,8 +234,5 @@ for id in id_to_gt:
             }
         )
 
-# with open("data/tinychart_formatted_preds_and_gt.json", "w") as f:
-#     json.dump(formatted_data, f, indent=4)
-# with open("data/tinychart_formatted_preds_and_onechart_gt.json", "w") as f:
-with open("data/hard_epicurves_formatted_preds_and_gt.json", "w") as f:
+with open("data/tinychart_basic_preds_gt.json", "w") as f:
     json.dump(formatted_data, f, indent=4)

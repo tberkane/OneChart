@@ -212,87 +212,25 @@ def erp_distance(
 
     # -- Optional visualization --
     if visualize:
-        try:
-            import matplotlib.pyplot as plt
-        except Exception as e:
-            print("[erp_distance] Visualization skipped (matplotlib unavailable):", e)
-        else:
-            # Heatmap of cumulative cost C[1:,1:], with path and colored markers per op
-            fig, ax = plt.subplots(1, 1, figsize=(7.5, 6.0))
-            im = ax.imshow(
-                C[1:, 1:],
-                origin="lower",
-                aspect="auto",
-            )
-            ax.set_title(f"ERP alignment (total={total:.4f}, steps={int(path_len)})")
-            ax.set_xlabel("j (index in y)")
-            ax.set_ylabel("i (index in x)")
-            fig.colorbar(im, ax=ax, shrink=0.9, label="Cumulative cost")
-
-            # Build arrays of plot points for each op type (at cell (i, j) entered)
-            match_pts_i, match_pts_j = [], []
-            del_pts_i, del_pts_j = [], []
-            ins_pts_i, ins_pts_j = [], []
-
-            # We plot using the end cell of each step; only cells with i>0 and j>0 lie on heatmap
-            i_pos, j_pos = 0, 0
-            for step in ops:
-                op = step["op"]
-                if op == "M":
-                    i_pos += 1
-                    j_pos += 1
-                    match_pts_i.append(i_pos - 1)  # heatmap rows are 0..m-1
-                    match_pts_j.append(j_pos - 1)  # heatmap cols are 0..n-1
-                elif op == "D":
-                    i_pos += 1
-                    if j_pos > 0:  # only plot if inside heatmap (j>0)
-                        del_pts_i.append(i_pos - 1)
-                        del_pts_j.append(j_pos - 1)
-                elif op == "I":
-                    j_pos += 1
-                    if i_pos > 0:  # only plot if inside heatmap (i>0)
-                        ins_pts_i.append(i_pos - 1)
-                        ins_pts_j.append(j_pos - 1)
-
-            h_match = ax.scatter(
-                match_pts_j, match_pts_i, marker="o", s=28, label="match"
-            )
-            h_del = ax.scatter(del_pts_j, del_pts_i, marker="s", s=28, label="deletion")
-            h_ins = ax.scatter(
-                ins_pts_j, ins_pts_i, marker="^", s=30, label="insertion"
-            )
-
-            # Also draw the path as a thin polyline (where both i>0 and j>0)
-            path_rows, path_cols = [], []
-            for i_state, j_state in states:
-                if i_state > 0 and j_state > 0:
-                    path_rows.append(i_state - 1)
-                    path_cols.append(j_state - 1)
-            ax.plot(path_cols, path_rows, linewidth=1.0, alpha=0.7)
-
-            ax.legend(loc="upper left")
-            plt.tight_layout()
-            plt.savefig("erp_alignment.png")
-
-            # Print a concise step log to console for debugging, including actual values
-            print("=== ERP alignment steps ===")
-            for idx, s in enumerate(ops, 1):
-                if s["op"] == "M":
-                    x_val = X[s["i"]] if s["i"] is not None else None
-                    y_val = Y[s["j"]] if s["j"] is not None else None
-                    print(
-                        f"{idx:3d}. M  x[{s['i']}] ↔ y[{s['j']}],  cost = {s['cost']:.6f} | x = {x_val}, y = {y_val}"
-                    )
-                elif s["op"] == "D":
-                    x_val = X[s["i"]] if s["i"] is not None else None
-                    print(
-                        f"{idx:3d}. D  x[{s['i']}] ↔ GAP,     cost = {s['cost']:.6f} | x = {x_val}, y = GAP"
-                    )
-                else:
-                    y_val = Y[s["j"]] if s["j"] is not None else None
-                    print(
-                        f"{idx:3d}. I  GAP ↔ y[{s['j']}],     cost = {s['cost']:.6f} | x = GAP, y = {y_val}"
-                    )
+        # Print a concise step log to console for debugging, including actual values
+        print("=== ERP alignment steps ===")
+        for idx, s in enumerate(ops, 1):
+            if s["op"] == "M":
+                x_val = X[s["i"]] if s["i"] is not None else None
+                y_val = Y[s["j"]] if s["j"] is not None else None
+                print(
+                    f"{idx:3d}. M  x[{s['i']}] ↔ y[{s['j']}],  cost = {s['cost']:.6f} | x = {x_val}, y = {y_val}"
+                )
+            elif s["op"] == "D":
+                x_val = X[s["i"]] if s["i"] is not None else None
+                print(
+                    f"{idx:3d}. D  x[{s['i']}] ↔ GAP,     cost = {s['cost']:.6f} | x = {x_val}, y = GAP"
+                )
+            else:
+                y_val = Y[s["j"]] if s["j"] is not None else None
+                print(
+                    f"{idx:3d}. I  GAP ↔ y[{s['j']}],     cost = {s['cost']:.6f} | x = GAP, y = {y_val}"
+                )
 
     if return_ops:
         return total, path_len, ops
@@ -303,7 +241,25 @@ def _get_relative_distance(target, prediction, theta=0.1):
     """Returns min(1, |target-prediction|/|target|)."""
     if target == 0:
         return 0 if prediction == 0 else 1
-    distance = min(abs((target - prediction) / target), 1)
+    distance = min(abs(target - prediction) / target, 1)
+    return distance if distance < theta else 1
+
+
+def _get_distance_axis_normalized(
+    target, prediction, series_axis_max, series_axis_min, theta=0.1
+):
+    """Returns min(1, |target-prediction|/|series_axis_max - series_axis_min|)."""
+    distance = min(abs(target - prediction) / (series_axis_max - series_axis_min), 1)
+    return distance if distance < theta else 1
+
+
+def _get_distance_series_normalized(
+    target, prediction, series_max, series_min, theta=0.1
+):
+    """Returns min(1, |target-prediction|/|series_max - series_min|)."""
+    if series_max == series_min:
+        return 0 if prediction == series_max else 1
+    distance = min(abs(target - prediction) / (series_max - series_min), 1)
     return distance if distance < theta else 1
 
 
@@ -335,14 +291,19 @@ def _to_float(text):
     try:
         if text.endswith("%"):
             # Convert percentages to floats.
-            return float(text.rstrip("%")) / 100.0
+            return float(text.rstrip("%"))
         else:
             return float(text)
     except ValueError:
-        return None
+        return 0
 
 
-def _dtw_similarity(series1: List[float], series2: List[float]) -> float:
+def _dtw_similarity(
+    series1: List[float],
+    series2: List[float],
+    series_axis_max: float,
+    series_axis_min: float,
+) -> float:
     """Calculate DTW similarity between two time series using the formula:
     DTW_score = 1 - (DTW(P, T) / max(DTW(P, P), DTW(T, T)))
 
@@ -358,18 +319,40 @@ def _dtw_similarity(series1: List[float], series2: List[float]) -> float:
 
     s1 = np.array(series1)
     s2 = np.array(series2)
-    # print("s1", s1)
-    # print("s2", s2)
-    dist_fn = lambda a, b: _get_relative_distance(a, b, theta=0.1)
 
-    dist, path_len = erp_distance(
-        s1, s2, g=0.0, window=7, dist=dist_fn, visualize=False
+    series_max = max(series1)
+    series_min = min(series1)
+
+    dist_fn_relative = lambda a, b: _get_relative_distance(a, b, theta=0.1)
+    dist_fn_axis_normalized = lambda a, b: _get_distance_axis_normalized(
+        a, b, series_axis_max, series_axis_min, theta=0.1
+    )
+    dist_fn_series_normalized = lambda a, b: _get_distance_series_normalized(
+        a, b, series_max, series_min, theta=0.1
     )
 
-    score = 1.0 - dist / path_len
-    print(f"Series DTW Similarity Score: {score:.2f}")
+    dist_relative, path_len_relative = erp_distance(
+        s1, s2, g=0.0, window=7, dist=dist_fn_relative, visualize=True
+    )
+    dist_axis_normalized, path_len_axis_normalized = erp_distance(
+        s1, s2, g=0.0, window=7, dist=dist_fn_axis_normalized, visualize=True
+    )
+    dist_series_normalized, path_len_series_normalized = erp_distance(
+        s1, s2, g=0.0, window=7, dist=dist_fn_series_normalized, visualize=True
+    )
 
-    return score
+    score_relative = 1.0 - dist_relative / path_len_relative
+    score_axis_normalized = 1.0 - dist_axis_normalized / path_len_axis_normalized
+    score_series_normalized = 1.0 - dist_series_normalized / path_len_series_normalized
+    print(f"Series DTW Similarity Score (relative): {score_relative * 100:.2f}%")
+    print(
+        f"Series DTW Similarity Score (axis normalized): {score_axis_normalized * 100:.2f}%"
+    )
+    print(
+        f"Series DTW Similarity Score (series normalized): {score_series_normalized * 100:.2f}%"
+    )
+
+    return score_relative, score_axis_normalized, score_series_normalized
 
 
 def _extract_series_from_table(table) -> Dict[str, List[float]]:
@@ -424,6 +407,10 @@ def _match_series_by_label(
     target_labels = list(target_series.keys())
     pred_labels = list(pred_series.keys())
 
+    # if one of GT/pred only has 1 series and the other has >1, then label matching will not work because the one with 1 series has no labels ==> match first series in that case
+    if len(target_labels) == 1 or len(pred_labels) == 1:
+        return [(target_labels[0], pred_labels[0], 1.0)]
+
     distance_matrix = []
     for target_label in target_labels:
         row = []
@@ -445,10 +432,11 @@ def _match_series_by_label(
         similarity = 1 - cost_matrix[r, c]
         matches.append((target_label, pred_label, similarity))
 
+    print(f"Matched series: {matches}")
     return matches
 
 
-def _table_dtw_similarity(target_table, prediction_table, text_theta=0.5):
+def _table_dtw_similarity(target_table, prediction_table, axes_bounds, text_theta=0.5):
     """Calculate DTW-based similarity between two tables.
 
     Args:
@@ -464,40 +452,65 @@ def _table_dtw_similarity(target_table, prediction_table, text_theta=0.5):
     pred_series = _extract_series_from_table(prediction_table)
 
     if not target_series and not pred_series:
-        return 1.0
+        return 1.0, 1.0, 1.0
     if not target_series or not pred_series:
-        return 0.0
+        return 0.0, 0.0, 0.0
 
     # Match series by label
     matches = _match_series_by_label(target_series, pred_series, text_theta)
-
     if not matches:
-        return 0.0
+        return 0.0, 0.0, 0.0
 
     # Calculate DTW similarity for each matched pair (no weighting)
-    matched_similarities = []
+    matched_similarities_relative = []
+    matched_similarities_axis_normalized = []
+    matched_similarities_series_normalized = []
     matched_target_labels = set()
 
     for target_label, pred_label, label_similarity in matches:
         if label_similarity > 0:  # Only consider matches above threshold
             target_values = target_series[target_label]
             pred_values = pred_series[pred_label]
+            series_axis_min, series_axis_max = axes_bounds[target_label]
 
             # Calculate DTW similarity
-            dtw_sim = _dtw_similarity(target_values, pred_values)
-            matched_similarities.append(dtw_sim)
+            dtw_sim_relative, dtw_sim_axis_normalized, dtw_sim_series_normalized = (
+                _dtw_similarity(
+                    target_values, pred_values, series_axis_max, series_axis_min
+                )
+            )
+            matched_similarities_relative.append(dtw_sim_relative)
+            matched_similarities_axis_normalized.append(dtw_sim_axis_normalized)
+            matched_similarities_series_normalized.append(dtw_sim_series_normalized)
             matched_target_labels.add(target_label)
 
     # Count unmatched ground truth series as 0
     unmatched_count = len(target_series) - len(matched_target_labels)
 
     # Add zeros for unmatched ground truth series
-    all_similarities = matched_similarities + [0.0] * unmatched_count
+    all_similarities = matched_similarities_relative + [0.0] * unmatched_count
+    all_similarities_axis_normalized = (
+        matched_similarities_axis_normalized + [0.0] * unmatched_count
+    )
+    all_similarities_series_normalized = (
+        matched_similarities_series_normalized + [0.0] * unmatched_count
+    )
+
+    assert (
+        len(all_similarities)
+        == len(all_similarities_axis_normalized)
+        == len(all_similarities_series_normalized)
+    )
 
     if not all_similarities:
-        return 0.0
+        return 0.0, 0.0, 0.0
 
-    return sum(all_similarities) / len(all_similarities)
+    return (
+        sum(all_similarities) / len(all_similarities),
+        sum(all_similarities_axis_normalized) / len(all_similarities_axis_normalized),
+        sum(all_similarities_series_normalized)
+        / len(all_similarities_series_normalized),
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -551,7 +564,7 @@ def _parse_table(text, target_has_more_than_two_headers=None):
         return Table(title=title)
     rows = []
     for line in lines[offset:]:
-        rows.append(tuple(v.strip() for v in line.split(" | ")))
+        rows.append(tuple(v.strip() for v in line.split("|")))
 
     if len(rows[0]) == 2 and not target_has_more_than_two_headers:
         return Table(title=title, headers=("A", "B"), rows=tuple(rows))
@@ -563,6 +576,7 @@ def table_dtw_similarity_per_point(
     targets,
     predictions,
     reversed_predictions,
+    axes_bounds,
     text_theta=0.5,
 ):
     """Computes DTW similarity metrics given two flattened tables.
@@ -579,7 +593,11 @@ def table_dtw_similarity_per_point(
       Dictionary with per-point DTW similarity scores
     """
     assert len(targets) == len(predictions)
-    per_point_scores = {"dtw_similarity": []}
+    per_point_scores = {
+        "dtw_similarity_relative": [],
+        "dtw_similarity_axis_normalized": [],
+        "dtw_similarity_series_normalized": [],
+    }
 
     for i, (pred, target) in enumerate(zip(predictions, targets)):
         print(f"Processing item {i+1} of {len(predictions)}")
@@ -590,23 +608,44 @@ def table_dtw_similarity_per_point(
         reversed_pred_table = _parse_table(
             reversed_pred, target_has_more_than_two_headers
         )
-
         # Try all target variations
-        similarity = _table_dtw_similarity(
+        (
+            similarity_relative,
+            similarity_axis_normalized,
+            similarity_series_normalized,
+        ) = _table_dtw_similarity(
             target_table,
             pred_table,
+            axes_bounds[i],
             text_theta,
         )
 
-        reversed_similarity = _table_dtw_similarity(
+        (
+            reversed_similarity_relative,
+            reversed_similarity_axis_normalized,
+            reversed_similarity_series_normalized,
+        ) = _table_dtw_similarity(
             target_table,
             reversed_pred_table,
+            axes_bounds[i],
             text_theta,
         )
 
         # Return simple average (no weighting)
-        print(f"Image DTW Similarity Score: {max(similarity, reversed_similarity):.2f}")
-        per_point_scores["dtw_similarity"].append(max(similarity, reversed_similarity))
+        print(
+            f"Image DTW Similarity Score (relative): {100 * max(similarity_relative, reversed_similarity_relative):.2f}%\n"
+            f"Image DTW Similarity Score (axis normalized): {100 * max(similarity_axis_normalized, reversed_similarity_axis_normalized):.2f}%\n"
+            f"Image DTW Similarity Score (series normalized): {100 * max(similarity_series_normalized, reversed_similarity_series_normalized):.2f}%"
+        )
+        per_point_scores["dtw_similarity_relative"].append(
+            max(similarity_relative, reversed_similarity_relative)
+        )
+        per_point_scores["dtw_similarity_axis_normalized"].append(
+            max(similarity_axis_normalized, reversed_similarity_axis_normalized)
+        )
+        per_point_scores["dtw_similarity_series_normalized"].append(
+            max(similarity_series_normalized, reversed_similarity_series_normalized)
+        )
     return per_point_scores
 
 
@@ -614,6 +653,7 @@ def table_dtw_similarity(
     targets,
     predictions,
     reversed_predictions,
+    axes_bounds,
     text_theta=0.5,
 ):
     """Aggregated version of table_dtw_similarity_per_point().
@@ -630,11 +670,17 @@ def table_dtw_similarity(
       Dictionary with aggregated DTW similarity
     """
     score_dict = table_dtw_similarity_per_point(
-        targets, predictions, reversed_predictions, text_theta
+        targets, predictions, reversed_predictions, axes_bounds, text_theta
     )
     return {
         "table_dtw_similarity": (
-            100.0 * sum(score_dict["dtw_similarity"]) / len(targets)
+            100.0 * sum(score_dict["dtw_similarity_relative"]) / len(targets)
+        ),
+        "table_dtw_similarity_axis_normalized": (
+            100.0 * sum(score_dict["dtw_similarity_axis_normalized"]) / len(targets)
+        ),
+        "table_dtw_similarity_series_normalized": (
+            100.0 * sum(score_dict["dtw_similarity_series_normalized"]) / len(targets)
         ),
     }
 
@@ -651,6 +697,7 @@ def chart2table_dtw_evaluator(data):
     refs = []
     hyps = []
     reversed_hyps = []
+    axes_bounds = []
     for item in data:
         ref = "title |\n" + item["gt_answer"].strip().lower()
         refs.append(ref)
@@ -658,16 +705,30 @@ def chart2table_dtw_evaluator(data):
         hyps.append(hyp)
         reversed_hyp = "title |\n" + item["model_answer_reversed"].strip().lower()
         reversed_hyps.append(reversed_hyp)
+        axes_bounds.append(
+            {
+                k.lower() if len(item["axes_bounds"]) > 1 else "B": v
+                for k, v in item["axes_bounds"].items()
+            }
+        )
 
-    dtw_similarity = table_dtw_similarity(refs, hyps, reversed_hyps)
-    return dtw_similarity["table_dtw_similarity"]
+    dtw_similarity = table_dtw_similarity(refs, hyps, reversed_hyps, axes_bounds)
+    return (
+        dtw_similarity["table_dtw_similarity"],
+        dtw_similarity["table_dtw_similarity_axis_normalized"],
+        dtw_similarity["table_dtw_similarity_series_normalized"],
+    )
 
 
 # Example usage
 if __name__ == "__main__":
     # Load data
-    data = json.load(open("data/tinychart_hard_epicurves_formatted_preds_and_gt.json"))
+    data = json.load(
+        open("data/EpiCurveBench_processed/tinychart_adv_preds_gt_analysis.json")
+    )
 
     # Calculate DTW similarity
     dtw_score = chart2table_dtw_evaluator(data)
-    print(f"Overall DTW Similarity Score: {dtw_score:.2f}%")
+    print(f"Overall DTW Similarity Score (relative): {dtw_score[0]:.2f}%")
+    print(f"Overall DTW Similarity Score (axis normalized): {dtw_score[1]:.2f}%")
+    print(f"Overall DTW Similarity Score (series normalized): {dtw_score[2]:.2f}%")
